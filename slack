@@ -1,0 +1,75 @@
+#!/bin/sh
+# Author - Dan Tembe 
+# Snow Integration - Using Original SLACK Integration file created by Daniel Cid. 
+# Last modified: April, 28th 2018
+#keep name as slack and keep file in /var/ossec/integrations
+#permissions slack 750 root:ossec 
+
+
+ALERTFILE=$1
+APIKEY=$2
+WEBHOOK= $3
+
+#from /var/ossec/etc/ossec.conf
+#<integration>
+#    <name>slack</name>
+#     <hook_url>https://myInstance.service-now.com/api/now/table/em_event</hook_url>
+#     <level>12</level>
+#  </integration>
+
+
+
+LOCAL=`dirname $0`;
+SERVER=`hostname`
+cd $LOCAL
+cd ../
+PWD=`pwd`
+
+
+# Logging the call
+echo "`date` $0 $1 $2 $3 $4 $5 $6 $7" >> ${PWD}/logs/integrations.log
+
+
+# IP Address must be provided
+#if [ "x${WEBHOOK}" = "x" ]; then
+###   echo "$0: Missing argument <alertfile> <unused> (webhook)" 
+#   exit 1;
+#fi
+
+
+ls $ALERTFILE >/dev/null 2>&1
+if [ ! $? = 0 ]; then
+    echo "$0: Missing file: <alertfile>"
+    exit 1;
+fi
+
+
+. $ALERTFILE 
+postfile=`mktemp`
+
+#Working Echo Do not change:
+
+#echo '{"source":"Wazuh", "node":"'$alertlocation'", "metric_name":"'$ruledescription'", "event_class":"Information_Security", "resource":"CI-TSE", "severity":"'$alertlevel'", "description": "'$alertlog'", "additional_info":"'$alertlevel'"}' > $postfile
+
+
+#Working Echo Do not change:
+#echo '{"source":"Wazuh", "node":"'$alertlocation'", "metric_name":"'$ruledescription'", "event_class":"Information_Security", "resource":"CI-TSE", "severity":"'$alertlevel'", "description": "OSSEC Alert\n```'$alertdate $alertlocation'\nRule:'$ruleid' (level '$alertlevel'): '$ruledescription'\nIP:'$srcip'\n'$alertlog'\n```", "additional_info":"'$alertlevel'"}' > $postfile
+
+#echo '{"source":"Wazuh", "node":"'$alertlocation'", "metric_name":"'$ruledescription'", "event_class":"Information_Security", "resource":"ServiceNow-InfoSec", "severity":"'$alertlevel'", "type":"'$ruleid'", "description": "OSSEC Alert\n```'$alertdate   $alertlocation'\n  Rule:  '$ruleid' (level '$alertlevel')  :   '$ruledescription'\n  IP:  '$srcip'\n  '$alertlog'\n ```", "additional_info":"'$alertlevel'"}' > $postfile
+
+
+echo '{"source":"Wazuh", "node":"'$alertlocation'", "metric_name":"'$ruledescription'", "event_class":"Information_Security", "resource":"'$alertlocation'", "severity":"'$alertlevel'", "type":"'$ruleid'", "description": "OSSEC Alert\n```'$alertdate   $alertlocation'\n  Rule:  '$ruleid' (level '$alertlevel') (PCI Rule id '$rulepci_dss')  :   '$ruledescription'\n  IP:  '$srcip'\n  '$alertlog'\n ```", "additional_info":"'$alertlevel'"}' > $postfile
+res=`curl -k -X POST -H "Accept: application/json" -H "Content-Type: application/json" --data @$postfile -u UserName:Password 'https://myInstance.service-now.com/api/now/table/em_event'`
+
+echo $res | grep "ok" >/dev/null 2>&1
+if [ $? = 0 ]; then
+    echo "`date` $0 SNOW integration ran successfully" >> ${PWD}/logs/integrations.log
+else
+    echo "`date` $0 SNOW integration failed to run. Either invalid hook url or payload." >> ${PWD}/logs/integrations.log
+fi
+
+rm -f $postfile
+
+exit 0;
+
+
